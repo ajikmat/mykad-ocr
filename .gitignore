@@ -1,0 +1,12 @@
+# Real card data — must never be committed (PDPA)
+benchmark/photos/
+benchmark/ground_truth.json
+
+# Environments & caches
+venv/
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+dist/
+.DS_Store

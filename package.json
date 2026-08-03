@@ -1,0 +1,16 @@
+{
+  "name": "mykad-scan",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w mykad-scan-core && npm run build -w mykad-scan-vue && npm run build -w mykad-scan-react"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.0",
+    "react": "^18.3.0",
+    "typescript": "^5.4.0",
+    "vue": "^3.4.0"
+  }
+}

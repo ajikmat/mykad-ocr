@@ -1,0 +1,24 @@
+{
+  "01.jpg": {
+    "name": "TAN AH KOW",
+    "icNumber": "880101-14-5567",
+    "religion": null,
+    "address": {
+      "lines": ["NO 12 JALAN MAWAR 3", "TAMAN SRI MAWAR", "68000 AMPANG", "SELANGOR"],
+      "postcode": "68000",
+      "city": "AMPANG",
+      "state": "SELANGOR"
+    }
+  },
+  "02.jpg": {
+    "name": "MUHAMMAD AIMAN BIN ABDULLAH",
+    "icNumber": "900215-08-6113",
+    "religion": "ISLAM",
+    "address": {
+      "lines": ["LOT 88 KAMPUNG PADANG", "34000 TAIPING", "PERAK"],
+      "postcode": "34000",
+      "city": "TAIPING",
+      "state": "PERAK"
+    }
+  }
+}

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MyKad Scan-to-Fill — demo</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; background: #f5f6f8;
+         color: #1a1a2e; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 24px;
+          display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } }
+  h1 { grid-column: 1 / -1; font-size: 20px; margin: 0; }
+  .panel { background: #fff; border-radius: 12px; padding: 16px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  #scanner { height: 420px; }
+  form label { display: block; font-size: 12px; color: #666;
+               margin: 10px 0 2px; }
+  form input, form textarea { width: 100%; box-sizing: border-box;
+    padding: 8px; border: 1px solid #ddd; border-radius: 6px;
+    font-size: 14px; background: #fafafa; }
+  .row { display: flex; gap: 10px; }
+  .row > div { flex: 1; }
+  #demo-note { grid-column: 1 / -1; font-size: 13px; color: #666; }
+  #sample-btn { margin-top: 10px; padding: 8px 16px; border: 0;
+    border-radius: 6px; background: #2f54eb; color: #fff; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>MyKad Scan-to-Fill demo</h1>
+
+  <div class="panel">
+    <div id="scanner"></div>
+    <button id="sample-btn" type="button">Scan the sample card (synthetic)</button>
+  </div>
+
+  <div class="panel">
+    <strong>Review &amp; correct</strong>
+    <form id="review">
+      <label>Name</label><input name="name">
+      <div class="row">
+        <div><label>IC number</label><input name="icNumber"></div>
+        <div><label>Gender</label><input name="gender"></div>
+        <div><label>Religion</label><input name="religion"></div>
+      </div>
+      <label>Address</label><textarea name="address" rows="3"></textarea>
+      <div class="row">
+        <div><label>Postcode</label><input name="postcode"></div>
+        <div><label>City</label><input name="city"></div>
+        <div><label>State</label><input name="state"></div>
+      </div>
+    </form>
+    <p id="scan-status" style="font-size:13px;color:#888">Waiting for a scan…</p>
+  </div>
+
+  <p id="demo-note">This page plays the role of a consuming project: the
+  scanner posts to <code>/api/scan-mykad</code> on this page's own origin
+  (proxied to the internal OCR Service), and the result pre-fills the form —
+  which stays editable, because the user always reviews and corrects.</p>
+</div>
+
+<script type="module">
+  import { createMykadScanner } from "/packages/core/dist/index.js";
+
+  const statusEl = document.getElementById("scan-status");
+  const form = document.getElementById("review");
+
+  function fill(result) {
+    const f = result.fields;
+    form.name.value = f.name ?? "";
+    form.icNumber.value = f.icNumber ?? "";
+    form.gender.value = f.gender ?? "";
+    form.religion.value = f.religion ?? "";
+    form.address.value = (f.address.lines ?? []).join("\n");
+    form.postcode.value = f.address.postcode ?? "";
+    form.city.value = f.address.city ?? "";
+    form.state.value = f.address.state ?? "";
+    statusEl.textContent = "Scanned — review the fields and correct anything wrong.";
+  }
+
+  const scanner = createMykadScanner({
+    proxyUrl: "/api/scan-mykad",
+    onResult: fill,
+    onReject: (reason) => { statusEl.textContent = "Rejected: " + reason; },
+    onError: (e) => { statusEl.textContent = "Error: " + e.message; },
+  });
+  scanner.mount(document.getElementById("scanner"));
+
+  document.getElementById("sample-btn").addEventListener("click", async () => {
+    statusEl.textContent = "Submitting sample card…";
+    const blob = await (await fetch("./sample-card.jpg")).blob();
+    scanner.submitImage(blob);
+  });
+</script>
+</body>
+</html>
