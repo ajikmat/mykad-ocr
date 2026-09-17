@@ -1,10 +1,18 @@
 /** Frame capture: crop the guide region out of the live video and compress
  *  to a reasonable upload size. Everything stays in memory. */
 
-import type { NormalizedRect } from "./detect.js";
+import { gradientVariance, type NormalizedRect } from "./detect.js";
 
 const MAX_CAPTURE_WIDTH = 1600;
 const QUALITY_STEPS = [0.92, 0.8, 0.7, 0.6, 0.5];
+const SHARPNESS_MEASURE_WIDTH = 200;
+
+export interface CaptureOutcome {
+  blob: Blob;
+  /** Gradient variance of the captured crop — compare against
+   *  DETECT.captureSharpMin to reject motion-blurred captures. */
+  sharpness: number;
+}
 
 /** Map the guide rect (element coordinates) into normalized video
  *  coordinates, accounting for object-fit: cover cropping. */
@@ -33,7 +41,7 @@ export async function captureFrame(
   video: HTMLVideoElement,
   region: NormalizedRect,
   maxBytes: number,
-): Promise<Blob> {
+): Promise<CaptureOutcome> {
   const vw = video.videoWidth;
   const vh = video.videoHeight;
   const margin = 0.04;
@@ -48,7 +56,26 @@ export async function captureFrame(
   canvas.width = outW;
   canvas.height = outH;
   canvas.getContext("2d")!.drawImage(video, x, y, w, h, 0, 0, outW, outH);
-  return compressCanvas(canvas, maxBytes);
+  const blob = await compressCanvas(canvas, maxBytes);
+  return { blob, sharpness: measureSharpness(canvas) };
+}
+
+/** Blur measure of the captured crop, computed on a small downscale. */
+function measureSharpness(canvas: HTMLCanvasElement): number {
+  const w = SHARPNESS_MEASURE_WIDTH;
+  const h = Math.max(2, Math.round((canvas.height * w) / canvas.width));
+  const small = document.createElement("canvas");
+  small.width = w;
+  small.height = h;
+  const ctx = small.getContext("2d", { willReadFrequently: true })!;
+  ctx.drawImage(canvas, 0, 0, w, h);
+  const rgba = ctx.getImageData(0, 0, w, h).data;
+  const gray = new Uint8ClampedArray(w * h);
+  for (let i = 0; i < w * h; i++) {
+    const j = i * 4;
+    gray[i] = (rgba[j] * 3 + rgba[j + 1] * 4 + rgba[j + 2]) >> 3;
+  }
+  return gradientVariance(gray, w, h);
 }
 
 async function compressCanvas(

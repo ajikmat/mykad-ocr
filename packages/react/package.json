@@ -1,6 +1,6 @@
 {
   "name": "mykad-scan-react",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "React wrapper for mykad-scan-core.",
   "type": "module",
   "main": "./dist/index.js",

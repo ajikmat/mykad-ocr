@@ -26,7 +26,7 @@ On the server:
 curl -fsSL https://get.docker.com | sh
 
 cd ~/mykad-ocr
-docker build -t mykad-ocr .          # slow first time (~2–3 GB image)
+docker build -t mykad-ocr .
 docker run -d --name mykad-ocr --restart unless-stopped \
     -p 127.0.0.1:8000:8000 mykad-ocr
 curl http://127.0.0.1:8000/health    # → {"status":"ok"}

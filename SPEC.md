@@ -27,7 +27,7 @@ Project's Laravel backend — SCAN PROXY
 │
 ▼  POST http://<internal>:8000/scan   (never exposed to the internet)
 OCR SERVICE (Docker, Python)
-   PaddleOCR + MyKad layout post-processing
+   RapidOCR (ONNX) + MyKad layout post-processing
    in-memory only — ZERO-RETENTION
 ```
 
@@ -92,7 +92,7 @@ MyTentera. Rejection means exactly one thing: no valid IC number found.
 
 ## 4. OCR Service
 
-Python (FastAPI) + PaddleOCR, one Docker image, CPU-only.
+Python (FastAPI) + RapidOCR (ONNX Runtime), one Docker image, CPU-only. (Originally PaddleOCR; swapped for runtime reliability and a smaller image.)
 
 ### API
 
@@ -103,7 +103,7 @@ Python (FastAPI) + PaddleOCR, one Docker image, CPU-only.
 
 1. **Preprocess** — decode, downscale to working resolution, locate the card
    rectangle, perspective-correct (deskew) and crop to the card.
-2. **OCR** — PaddleOCR detection + recognition over the corrected crop.
+2. **OCR** — RapidOCR detection + recognition over the corrected crop.
 3. **Layout mapping** — assign text boxes to MyKad regions by relative position
    (IC number top-left, name/address block lower-left, ISLAM right side under photo).
 4. **Field parsing** — the rules in §3: IC validation, gender derivation,
@@ -210,7 +210,7 @@ remaining projects with the correction-count telemetry hook if adopted.
 
 | Risk | Mitigation |
 |------|------------|
-| PaddleOCR accuracy below gate on real cards | Phase 0 spike before committing; layout post-processing and IC validation recover many raw-OCR errors |
+| OCR accuracy below gate on real cards | Phase 0 spike before committing; layout post-processing and IC validation recover many raw-OCR errors |
 | Low-end Android performance in auto-capture | Detection runs on downscaled frames; manual shutter and Upload Fallback always available |
 | Anonymous endpoint abuse | Throttle + size cap + origin check; worst case is wasted CPU, no data exposure |
 | Server outage takes scan down for all projects | Feature degrades to normal manual form entry — Scan-to-Fill is an accelerator, never a gate |

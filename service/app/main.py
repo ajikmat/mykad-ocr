@@ -7,6 +7,7 @@ Deployment note: this service must never be exposed to the internet.
 Consuming projects reach it through their own Scan Proxy endpoints.
 """
 
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -14,6 +15,8 @@ from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 
 MAX_IMAGE_MB = float(os.environ.get("MYKAD_MAX_IMAGE_MB", "8"))
+
+log = logging.getLogger("mykad")
 
 # Lazily bound so unit tests can run without paddle/cv2 installed
 _scan_impl = None
@@ -29,11 +32,17 @@ def _get_scan_impl():
 
 @asynccontextmanager
 async def lifespan(app):
-    # Load OCR models at boot instead of on the first request.
+    # Load OCR models at boot AND run one dummy inference, so the first
+    # real user doesn't pay the model-load + kernel-JIT cost.
     # MYKAD_WARMUP=0 skips this (used by tests).
     if os.environ.get("MYKAD_WARMUP", "1") != "0":
         from .ocr_engine import get_engine
-        get_engine()
+        engine = get_engine()
+        try:
+            import numpy as np
+            engine.run(np.full((650, 1030, 3), 255, dtype=np.uint8))
+        except Exception:
+            log.exception("warmup inference failed")
     yield
 
 
@@ -53,7 +62,13 @@ def scan(image: UploadFile = File(...)):
     if len(data) > MAX_IMAGE_MB * 1024 * 1024:
         return JSONResponse({"ok": False, "reason": "IMAGE_TOO_LARGE"},
                             status_code=413)
-    result = _get_scan_impl()(data)
+    try:
+        result = _get_scan_impl()(data)
+    except Exception:
+        # log the traceback only — never the image or extracted values
+        log.exception("scan pipeline failed")
+        return JSONResponse({"ok": False, "reason": "INTERNAL_ERROR"},
+                            status_code=500)
     if not result["ok"] and result["reason"] == "IMAGE_UNREADABLE":
         return JSONResponse(result, status_code=400)
     return result

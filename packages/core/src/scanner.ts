@@ -144,13 +144,16 @@ class Scanner implements MykadScanner {
     const guide = this.guideRectInVideo();
     if (!guide) return;
     const t = this.detector.analyze(this.video, guide);
-    if (t.cardPresent && t.sharp && t.steady) {
-      this.lockTicks++;
+    // Forgiving accumulation: normal hand tremor must not restart the
+    // hold. A good tick advances; a wobbly-but-framed tick just pauses;
+    // only losing the card (or focus) decays progress.
+    if (t.cardPresent && t.sharp) {
+      if (t.steady) this.lockTicks++;
       this.setState("locking", this.labels.holdSteady);
-      if (this.lockTicks >= DETECT.ticksToLock) void this.capture();
+      if (this.lockTicks >= DETECT.ticksToLock) void this.capture(true);
     } else {
-      this.lockTicks = 0;
-      if (this.state === "locking") {
+      this.lockTicks = Math.max(0, this.lockTicks - 1);
+      if (this.state === "locking" && this.lockTicks === 0) {
         this.setState("scanning", this.labels.guide);
       }
     }
@@ -158,16 +161,25 @@ class Scanner implements MykadScanner {
 
   // ---------------------------------------------------- capture and submit
 
-  private async capture(): Promise<void> {
+  private async capture(auto = false): Promise<void> {
     const guide = this.guideRectInVideo();
     if (!guide) return;
     this.stopLoop();
     try {
-      const blob = await captureFrame(
+      const { blob, sharpness } = await captureFrame(
         this.video,
         guide,
         this.opts.maxUploadBytes ?? 1_000_000,
       );
+      // Auto-captures are quality-gated: a motion-blurred crop would only
+      // earn a NO_IC_FOUND round-trip, so retry silently instead. A manual
+      // shutter press is the user's call — always submitted.
+      if (auto && sharpness < DETECT.captureSharpMin) {
+        this.setState("scanning", this.labels.blurry);
+        this.detector.reset();
+        this.startLoop();
+        return;
+      }
       await this.submit(blob);
     } catch (e) {
       this.fail(e);

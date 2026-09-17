@@ -64,3 +64,12 @@ def test_oversize_image_is_413(monkeypatch):
 def test_missing_image_field_is_422():
     client = TestClient(main.app)
     assert client.post("/scan").status_code == 422
+
+
+def test_pipeline_crash_is_json_500(monkeypatch):
+    def boom(data):
+        raise RuntimeError("unexpected")
+    monkeypatch.setattr(main, "_scan_impl", boom)
+    r = post_image(TestClient(main.app))
+    assert r.status_code == 500
+    assert r.json() == {"ok": False, "reason": "INTERNAL_ERROR"}

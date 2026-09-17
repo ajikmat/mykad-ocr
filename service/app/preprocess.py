@@ -16,8 +16,13 @@ MIN_CARD_AREA_FRAC = 0.25
 
 def decode(data: bytes):
     """JPEG/PNG bytes → BGR array, or None if undecodable."""
+    if not data:
+        return None
     arr = np.frombuffer(data, np.uint8)
-    return cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    try:
+        return cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    except cv2.error:  # imdecode raises on some malformed buffers
+        return None
 
 
 def normalize(img):

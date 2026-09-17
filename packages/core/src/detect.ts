@@ -17,11 +17,43 @@ export const DETECT = {
   bandVsInner: 1.1,
   /** variance of edge strength inside the guide ("image is sharp") */
   sharpnessMin: 180,
-  /** mean per-pixel diff vs previous frame ("holding steady") */
-  steadyMaxDiff: 7,
-  /** consecutive positive ticks before auto-capture (~150 ms each) */
-  ticksToLock: 5,
+  /** mean per-pixel diff vs previous frame ("holding steady") —
+   *  loose on purpose: normal hand tremor must still pass */
+  steadyMaxDiff: 14,
+  /** good ticks accumulated before auto-capture (~150 ms each).
+   *  Progress is forgiving: a wobbly tick pauses it, only losing the
+   *  card/focus decays it — see scanner.tick() */
+  ticksToLock: 4,
+  /** minimum gradient variance of the CAPTURED crop; below this the
+   *  capture is discarded as motion-blurred and scanning resumes */
+  captureSharpMin: 120,
 };
+
+/** Variance of gradient magnitude over a grayscale image — the blur
+ *  measure shared by live detection and the post-capture quality gate.
+ *  Pure math, unit-testable without a DOM. */
+export function gradientVariance(
+  gray: Uint8ClampedArray,
+  w: number,
+  h: number,
+): number {
+  let sum = 0;
+  let sumSq = 0;
+  let n = 0;
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      const gx = gray[i + 1] - gray[i - 1];
+      const gy = gray[i + w] - gray[i - w];
+      const e = Math.abs(gx) + Math.abs(gy);
+      sum += e;
+      sumSq += e * e;
+      n++;
+    }
+  }
+  const mean = n ? sum / n : 0;
+  return n ? sumSq / n - mean * mean : 0;
+}
 
 export interface NormalizedRect {
   x: number;

@@ -57,9 +57,8 @@ docker build -t mykad-ocr .
 docker run -d --name mykad-ocr --restart unless-stopped -p 127.0.0.1:8000:8000 mykad-ocr
 ```
 
-- The image bakes the OCR models in at build time — the container needs **no
-  internet at runtime**. Expect a large image (~2–3 GB, Paddle is heavy) and
-  a several-minute first build.
+- The OCR models ship inside the RapidOCR package — the container needs **no
+  internet at runtime**, and the image stays small (a few hundred MB).
 - `-p 127.0.0.1:8000:8000` binds to localhost only — right when the Laravel
   apps live on the same server. If they're on other machines, bind to the
   internal interface and firewall the port. **Never expose it publicly**; the
@@ -76,7 +75,7 @@ docker run -d --name mykad-ocr --restart unless-stopped -p 127.0.0.1:8000:8000 m
 
 ```bash
 python3 -m venv venv && source venv/bin/activate
-pip install -r requirements-dev.txt   # unit + API tests, no Paddle needed
+pip install -r requirements-dev.txt   # unit + API tests, no OCR engine needed
 pytest
 
 pip install -r requirements.txt pillow  # adds the real-model integration test
@@ -85,5 +84,5 @@ pytest
 
 Layout: `app/mykad.py` holds all field-parsing rules (pure Python — this is
 where accuracy tuning happens), `app/preprocess.py` card crop/deskew,
-`app/ocr_engine.py` the PaddleOCR adapter, `app/pipeline.py` glues them,
+`app/ocr_engine.py` the RapidOCR (ONNX Runtime) adapter, `app/pipeline.py` glues them,
 `app/main.py` the HTTP layer.

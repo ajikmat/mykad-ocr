@@ -38,6 +38,8 @@ export interface Labels {
   holdSteady: string;
   processing: string;
   rejected: string;
+  /** Shown when an auto-capture is discarded as motion-blurred. */
+  blurry: string;
   cameraUnavailable: string;
   captureButton: string;
   uploadButton: string;

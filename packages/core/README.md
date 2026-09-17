@@ -30,10 +30,14 @@ Behavior notes:
 - **HTTPS required** — browsers only allow camera access on secure origins
   (localhost is fine for dev).
 - **Auto-capture is a heuristic**, not card recognition: edge-on-frame +
-  sharpness + steadiness for ~0.75 s. Thresholds are exported as `DETECT`
-  for tuning on real devices. The manual button and upload fallback are
-  always available, and whether the image is actually a MyKad is decided
-  server-side.
+  sharpness, with a steadiness hold (~0.6 s) that is deliberately forgiving —
+  normal hand tremor pauses progress instead of resetting it; only losing
+  the card or focus decays it. Every auto-capture is then blur-checked
+  (`DETECT.captureSharpMin`) and silently retried if motion-blurred, so a
+  shaky capture never wastes a server round-trip. Thresholds are exported
+  as `DETECT` for tuning on real devices. The manual button and upload
+  fallback are always available, and whether the image is actually a MyKad
+  is decided server-side.
 - **Privacy:** frames are analyzed in-page; the only thing that leaves the
   browser is the captured JPEG, sent to your `proxyUrl`. The camera is
   stopped after a successful scan.

@@ -12,7 +12,7 @@ Start here: [SPEC.md](SPEC.md) (architecture and contracts),
 
 | Path | What |
 |------|------|
-| `service/` | The OCR Service — FastAPI + PaddleOCR, Docker, internal-only, zero-retention |
+| `service/` | The OCR Service — FastAPI + RapidOCR (ONNX Runtime), Docker, internal-only, zero-retention |
 | `packages/core/` | `mykad-scan-core` — camera, guided auto-capture, upload fallback (framework-agnostic) |
 | `packages/vue/` | `mykad-scan-vue` — Vue 3 component wrapper |
 | `packages/react/` | `mykad-scan-react` — React component wrapper |

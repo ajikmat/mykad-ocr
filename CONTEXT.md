@@ -32,7 +32,7 @@ The Latin-script (romanized) name only, with wrapped lines joined — long Malay
 
 ## OCR Service
 
-The in-house microservice that does the actual extraction: a Dockerized Python service (PaddleOCR + MyKad-layout post-processing) running on the company Linux server. Receives a card image, returns structured fields. The only place OCR happens — consuming projects never run OCR themselves. See ADR-0001.
+The in-house microservice that does the actual extraction: a Dockerized Python service (RapidOCR/ONNX + MyKad-layout post-processing) running on the company Linux server. Receives a card image, returns structured fields. The only place OCR happens — consuming projects never run OCR themselves. See ADR-0001.
 
 ## Zero-retention
 

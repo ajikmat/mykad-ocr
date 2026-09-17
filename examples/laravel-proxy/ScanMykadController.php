@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 
@@ -24,9 +25,13 @@ class ScanMykadController extends Controller
 
         $file = $request->file('image');
 
-        $response = Http::timeout(30)
-            ->attach('image', fopen($file->getRealPath(), 'r'), 'card.jpg')
-            ->post(rtrim(config('services.mykad_ocr.url'), '/') . '/scan');
+        try {
+            $response = Http::timeout(30)
+                ->attach('image', fopen($file->getRealPath(), 'rb'), 'card.jpg')
+                ->post(rtrim(config('services.mykad_ocr.url'), '/') . '/scan');
+        } catch (ConnectionException $e) {
+            return response()->json(['ok' => false, 'reason' => 'SERVICE_DOWN'], 502);
+        }
 
         return response()->json($response->json(), $response->status());
     }
