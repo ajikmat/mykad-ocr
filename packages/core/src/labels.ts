@@ -5,7 +5,6 @@ export const DEFAULT_LABELS: Labels = {
   holdSteady: "Hold steady…",
   processing: "Reading your card…",
   rejected: "Could not read the card — try again",
-  blurry: "A bit blurry — hold on, retrying…",
   cameraUnavailable: "Camera unavailable — upload a photo instead",
   captureButton: "Capture",
   uploadButton: "Upload photo",

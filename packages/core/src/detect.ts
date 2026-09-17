@@ -4,6 +4,13 @@
  * card-edge-shaped sits on the guide frame, the image is sharp, and the
  * scene is steady. Whether it's actually a MyKad is the OCR Service's call.
  *
+ * This is the 0.1.0 detector (validated on real devices in normal indoor
+ * light) with two ergonomic changes that do NOT alter its light
+ * requirements: the border band is tried at several inset/outset offsets
+ * so the card doesn't have to fit the zone exactly, and the steadiness
+ * tolerance is relaxed for hand tremor (steadiness was never the
+ * false-positive guard — card presence is).
+ *
  * All thresholds are exported for tuning against real devices; the manual
  * shutter button is always available as the backstop.
  */
@@ -15,45 +22,19 @@ export const DETECT = {
   edgeBandMin: 22,
   /** border edges must beat interior edges by this factor */
   bandVsInner: 1.1,
+  /** the border band (half-width 2) is evaluated at each of these
+   *  inset(-)/outset(+) offsets and the best match wins — tolerates the
+   *  card being held slightly smaller or larger than the zone */
+  bandOffsets: [-4, -2, 0, 2, 4],
   /** variance of edge strength inside the guide ("image is sharp") */
   sharpnessMin: 180,
   /** mean per-pixel diff vs previous frame ("holding steady") —
-   *  loose on purpose: normal hand tremor must still pass */
-  steadyMaxDiff: 14,
-  /** good ticks accumulated before auto-capture (~150 ms each).
-   *  Progress is forgiving: a wobbly tick pauses it, only losing the
-   *  card/focus decays it — see scanner.tick() */
-  ticksToLock: 4,
-  /** minimum gradient variance of the CAPTURED crop; below this the
-   *  capture is discarded as motion-blurred and scanning resumes */
-  captureSharpMin: 120,
+   *  relaxed vs 0.1.0's 7 so normal hand tremor passes */
+  steadyMaxDiff: 11,
+  /** good ticks before auto-capture (~150 ms each). An unsteady-but-framed
+   *  tick pauses the count; losing the card resets it — see scanner.tick() */
+  ticksToLock: 5,
 };
-
-/** Variance of gradient magnitude over a grayscale image — the blur
- *  measure shared by live detection and the post-capture quality gate.
- *  Pure math, unit-testable without a DOM. */
-export function gradientVariance(
-  gray: Uint8ClampedArray,
-  w: number,
-  h: number,
-): number {
-  let sum = 0;
-  let sumSq = 0;
-  let n = 0;
-  for (let y = 1; y < h - 1; y++) {
-    for (let x = 1; x < w - 1; x++) {
-      const i = y * w + x;
-      const gx = gray[i + 1] - gray[i - 1];
-      const gy = gray[i + w] - gray[i - w];
-      const e = Math.abs(gx) + Math.abs(gy);
-      sum += e;
-      sumSq += e * e;
-      n++;
-    }
-  }
-  const mean = n ? sum / n : 0;
-  return n ? sumSq / n - mean * mean : 0;
-}
 
 export interface NormalizedRect {
   x: number;
@@ -66,6 +47,100 @@ export interface DetectTick {
   cardPresent: boolean;
   steady: boolean;
   sharp: boolean;
+}
+
+/** The 0.1.0 detection math on a grayscale frame — pure and testable.
+ *  The CardDetector class wraps this with the canvas plumbing. */
+export function analyzeFrame(
+  gray: Uint8ClampedArray,
+  w: number,
+  h: number,
+  guide: NormalizedRect,
+  prev: Uint8ClampedArray | null,
+): DetectTick {
+  // steadiness vs previous frame
+  let steady = false;
+  if (prev && prev.length === gray.length) {
+    let diff = 0;
+    for (let i = 0; i < gray.length; i += 4) {
+      diff += Math.abs(gray[i] - prev[i]);
+    }
+    steady = diff / (gray.length / 4) <= DETECT.steadyMaxDiff;
+  }
+
+  // gradient magnitude (cheap sobel-ish)
+  const edge = new Float32Array(w * h);
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      const gx = gray[i + 1] - gray[i - 1];
+      const gy = gray[i + w] - gray[i - w];
+      edge[i] = Math.abs(gx) + Math.abs(gy);
+    }
+  }
+
+  const gx0 = Math.round(guide.x * w);
+  const gy0 = Math.round(guide.y * h);
+  const gx1 = Math.round((guide.x + guide.w) * w);
+  const gy1 = Math.round((guide.y + guide.h) * h);
+
+  // mean edge strength in a thin band along the guide border, tried at
+  // each offset (negative = ring shrunk inward, positive = grown outward);
+  // the best-aligned ring represents the card
+  const band = 2;
+  let bandMean = 0;
+  for (const off of DETECT.bandOffsets) {
+    const bx0 = gx0 - off;
+    const by0 = gy0 - off;
+    const bx1 = gx1 + off;
+    const by1 = gy1 + off;
+    let bandSum = 0;
+    let bandN = 0;
+    for (let y = by0 - band; y <= by1 + band; y++) {
+      for (let x = bx0 - band; x <= bx1 + band; x++) {
+        if (x < 1 || y < 1 || x >= w - 1 || y >= h - 1) continue;
+        const onBorder =
+          Math.abs(x - bx0) <= band || Math.abs(x - bx1) <= band ||
+          Math.abs(y - by0) <= band || Math.abs(y - by1) <= band;
+        const inRect =
+          x >= bx0 - band && x <= bx1 + band &&
+          y >= by0 - band && y <= by1 + band;
+        if (onBorder && inRect) {
+          bandSum += edge[y * w + x];
+          bandN++;
+        }
+      }
+    }
+    const m = bandN ? bandSum / bandN : 0;
+    if (m > bandMean) bandMean = m;
+  }
+
+  // interior edge stats (shrunk 20%): mean for contrast, variance for focus
+  const ix0 = Math.round(gx0 + 0.2 * (gx1 - gx0));
+  const ix1 = Math.round(gx1 - 0.2 * (gx1 - gx0));
+  const iy0 = Math.round(gy0 + 0.2 * (gy1 - gy0));
+  const iy1 = Math.round(gy1 - 0.2 * (gy1 - gy0));
+  let sum = 0;
+  let sumSq = 0;
+  let n = 0;
+  for (let y = Math.max(1, iy0); y < Math.min(h - 1, iy1); y++) {
+    for (let x = Math.max(1, ix0); x < Math.min(w - 1, ix1); x++) {
+      const e = edge[y * w + x];
+      sum += e;
+      sumSq += e * e;
+      n++;
+    }
+  }
+  const innerMean = n ? sum / n : 0;
+  const innerVar = n ? sumSq / n - innerMean * innerMean : 0;
+
+  return {
+    cardPresent:
+      bandMean >= DETECT.edgeBandMin &&
+      bandMean >= innerMean * DETECT.bandVsInner,
+    sharp: innerVar >= DETECT.sharpnessMin,
+    steady,
+  };
 }
 
 export class CardDetector {
@@ -93,77 +168,9 @@ export class CardDetector {
       gray[i] = (rgba[j] * 3 + rgba[j + 1] * 4 + rgba[j + 2]) >> 3;
     }
 
-    // steadiness vs previous frame
-    let steady = false;
-    if (this.prev && this.prev.length === gray.length) {
-      let diff = 0;
-      for (let i = 0; i < gray.length; i += 4) {
-        diff += Math.abs(gray[i] - this.prev[i]);
-      }
-      steady = diff / (gray.length / 4) <= DETECT.steadyMaxDiff;
-    }
+    const tick = analyzeFrame(gray, w, h, guide, this.prev);
     this.prev = gray.slice();
-
-    // gradient magnitude (cheap sobel-ish)
-    const edge = new Float32Array(w * h);
-    for (let y = 1; y < h - 1; y++) {
-      for (let x = 1; x < w - 1; x++) {
-        const i = y * w + x;
-        const gx = gray[i + 1] - gray[i - 1];
-        const gy = gray[i + w] - gray[i - w];
-        edge[i] = Math.abs(gx) + Math.abs(gy);
-      }
-    }
-
-    const gx0 = Math.round(guide.x * w);
-    const gy0 = Math.round(guide.y * h);
-    const gx1 = Math.round((guide.x + guide.w) * w);
-    const gy1 = Math.round((guide.y + guide.h) * h);
-
-    // mean edge strength in a thin band along the guide border
-    const band = 2;
-    let bandSum = 0;
-    let bandN = 0;
-    for (let y = gy0; y <= gy1; y++) {
-      for (let x = gx0; x <= gx1; x++) {
-        if (x < 0 || y < 0 || x >= w || y >= h) continue;
-        const onBorder =
-          Math.abs(x - gx0) <= band || Math.abs(x - gx1) <= band ||
-          Math.abs(y - gy0) <= band || Math.abs(y - gy1) <= band;
-        if (onBorder) {
-          bandSum += edge[y * w + x];
-          bandN++;
-        }
-      }
-    }
-    const bandMean = bandN ? bandSum / bandN : 0;
-
-    // interior edge stats (shrunk 20%): mean for contrast, variance for focus
-    const ix0 = Math.round(gx0 + 0.2 * (gx1 - gx0));
-    const ix1 = Math.round(gx1 - 0.2 * (gx1 - gx0));
-    const iy0 = Math.round(gy0 + 0.2 * (gy1 - gy0));
-    const iy1 = Math.round(gy1 - 0.2 * (gy1 - gy0));
-    let sum = 0;
-    let sumSq = 0;
-    let n = 0;
-    for (let y = Math.max(1, iy0); y < Math.min(h - 1, iy1); y++) {
-      for (let x = Math.max(1, ix0); x < Math.min(w - 1, ix1); x++) {
-        const e = edge[y * w + x];
-        sum += e;
-        sumSq += e * e;
-        n++;
-      }
-    }
-    const innerMean = n ? sum / n : 0;
-    const innerVar = n ? sumSq / n - innerMean * innerMean : 0;
-
-    return {
-      cardPresent:
-        bandMean >= DETECT.edgeBandMin &&
-        bandMean >= innerMean * DETECT.bandVsInner,
-      sharp: innerVar >= DETECT.sharpnessMin,
-      steady,
-    };
+    return tick;
   }
 
   reset(): void {

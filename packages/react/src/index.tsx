@@ -8,6 +8,7 @@ import {
 } from "mykad-scan-core";
 
 export type { MykadFields, RejectReason, ScanResult } from "mykad-scan-core";
+export { VERSION } from "mykad-scan-core";
 
 export interface MykadScannerProps {
   /** The consuming project's Scan Proxy endpoint, e.g. "/api/scan-mykad". */

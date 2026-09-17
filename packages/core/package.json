@@ -1,6 +1,6 @@
 {
   "name": "mykad-scan-core",
-  "version": "0.1.1",
+  "version": "0.1.5",
   "description": "Framework-agnostic MyKad scan-to-fill capture library: camera, guided auto-capture, upload fallback.",
   "type": "module",
   "main": "./dist/index.js",
@@ -15,7 +15,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "node scripts/gen-version.mjs && tsc -p tsconfig.json"
   },
   "license": "UNLICENSED"
 }

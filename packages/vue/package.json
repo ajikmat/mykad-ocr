@@ -1,6 +1,6 @@
 {
   "name": "mykad-scan-vue",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Vue 3 wrapper for mykad-scan-core.",
   "type": "module",
   "main": "./dist/index.js",

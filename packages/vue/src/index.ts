@@ -15,6 +15,7 @@ import {
 } from "mykad-scan-core";
 
 export type { MykadFields, RejectReason, ScanResult } from "mykad-scan-core";
+export { VERSION } from "mykad-scan-core";
 
 /**
  * <MykadScanner proxy-url="/api/scan-mykad" @result="onResult" />
